@@ -1,0 +1,1 @@
+{"name": "D", "library_id": "12345", "borrowed_books": {}, "reserved_books": []}
