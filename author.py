@@ -1,30 +1,30 @@
 import json
 
+from db_config import DatabaseConnection
+
 class Author:
     def __init__(self, name, biography):
-        self.__name = name
-        self.__biography = biography
+        self.name = name
+        self.biography = biography
 
-    def get_details(self):
-        return {
-            "name": self.__name,
-            "biography": self.__biography
-        }
-
-    def save_to_file(self):
-        author_data = self.get_details()
-        with open("authors.txt", "a") as file:
-            file.write(json.dumps(author_data) + "\n")
+    def save_to_db(self):
+        with DatabaseConnection() as cursor:
+            sql = "INSERT INTO authors (name, biography) VALUES (%s, %s)"
+            cursor.execute(sql, (self.name, self.biography))
 
     @staticmethod
-    def load_from_file():
-        authors = []
-        try:
-            with open("authors.txt", "r") as file:
-                for line in file:
-                    author_data = json.loads(line.strip())
-                    author = Author(name=author_data["name"], biography=author_data["biography"])
-                    authors.append(author)
-        except FileNotFoundError:
-            print("No authors file found.")
-        return authors
+    def load_from_db():
+        with DatabaseConnection() as cursor:
+            cursor.execute("SELECT * FROM authors")
+            return cursor.fetchall()
+
+    @staticmethod
+    def get_author_details(author_id):
+        with DatabaseConnection() as cursor:
+            cursor.execute("""
+                SELECT a.*, GROUP_CONCAT(b.title) as books
+                FROM authors a
+                LEFT JOIN books b ON a.id = b.author_id
+                WHERE a.id = %s
+                GROUP BY a.id""", (author_id,))
+            return cursor.fetchone()

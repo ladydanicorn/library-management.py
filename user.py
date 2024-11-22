@@ -1,62 +1,39 @@
 import json
+from db_config import DatabaseConnection
 from datetime import datetime, timedelta
 
 class User:
     def __init__(self, name, library_id):
-        self.__name = name
-        self.__library_id = library_id
-        self.__borrowed_books = {}  
-        self.__reserved_books = []
+        self.name = name
+        self.library_id = library_id
 
-    def borrow_book(self, book_title):
-        due_date = datetime.now() + timedelta(days=14)
-        self.__borrowed_books[book_title] = due_date
-        print(f"{book_title} borrowed until {due_date.strftime('%Y-%m-%d')}")
-
-    def return_book(self, book_title):
-        if book_title in self.__borrowed_books:
-            due_date = self.__borrowed_books.pop(book_title)
-            overdue_days = (datetime.now() - due_date).days
-            if overdue_days > 0:
-                fine = overdue_days * 0.5  
-                print(f"Overdue by {overdue_days} days. Fine: ${fine:.2f}")
-            print(f"{book_title} returned successfully.")
-        else:
-            print(f"{book_title} was not borrowed by this user.")
-
-    def reserve_book(self, book_title):
-        if book_title not in self.__reserved_books:
-            self.__reserved_books.append(book_title)
-            return f"{book_title} has been reserved."
-        return f"{book_title} is already reserved by you."
-
-    def get_details(self):
-        return {
-            "name": self.__name,
-            "library_id": self.__library_id,
-            "borrowed_books": self.__borrowed_books,
-            "reserved_books": self.__reserved_books
-        }
-
-    def save_to_file(self):
-        user_data = self.get_details()
-        with open("users.txt", "a") as file:
-            file.write(json.dumps(user_data) + "\n")
+    def save_to_db(self):
+        with DatabaseConnection() as cursor:
+            sql = "INSERT INTO users (name, library_id) VALUES (%s, %s)"
+            cursor.execute(sql, (self.name, self.library_id))
 
     @staticmethod
-    def load_from_file():
-        users = []
-        try:
-            with open("users.txt", "r") as file:
-                for line in file:
-                    user_data = json.loads(line.strip())
-                    user = User(
-                        name=user_data["name"],
-                        library_id=user_data["library_id"]
-                    )
-                    user.__borrowed_books = user_data["borrowed_books"]
-                    user.__reserved_books = user_data["reserved_books"]
-                    users.append(user)
-        except FileNotFoundError:
-            print("No users file found.")
-        return users
+    def load_from_db():
+        with DatabaseConnection() as cursor:
+            cursor.execute("""
+                SELECT u.*, 
+                       GROUP_CONCAT(b.title) as borrowed_books
+                FROM users u
+                LEFT JOIN borrowed_books bb ON u.id = bb.user_id
+                LEFT JOIN books b ON bb.book_id = b.id
+                GROUP BY u.id""")
+            return cursor.fetchall()
+
+    @staticmethod
+    def get_user_details(library_id):
+        with DatabaseConnection() as cursor:
+            cursor.execute("""
+                SELECT u.*, 
+                       GROUP_CONCAT(b.title) as borrowed_books,
+                       GROUP_CONCAT(bb.borrow_date) as borrow_dates
+                FROM users u
+                LEFT JOIN borrowed_books bb ON u.id = bb.user_id
+                LEFT JOIN books b ON bb.book_id = b.id
+                WHERE u.library_id = %s
+                GROUP BY u.id""", (library_id,))
+            return cursor.fetchone()

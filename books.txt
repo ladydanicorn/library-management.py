@@ -1,1 +1,0 @@
-{"title": "Invisible Monsters", "author": "Chuck Palahniuk", "genre": "Drama", "publication_date": "1/1/1", "is_borrowed": false}
